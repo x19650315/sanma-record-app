@@ -1,0 +1,158 @@
+{
+  "schema": "sanma.shared/v1",
+  "members": [],
+  "tables": [
+    {
+      "id": "half",
+      "name": "ハーフ",
+      "version": 1,
+      "comparisonOnly": false,
+      "rounding": {
+        "unit": 50,
+        "perPayment": true,
+        "method": "floor-per-share",
+        "payerPays": "rounded-shares-total"
+      },
+      "points": {
+        "threshold": 40000,
+        "step": 1000,
+        "at39000": 550,
+        "slope": 50,
+        "atZero": 3000
+      },
+      "venue": {
+        "amount": 0,
+        "nonTopAt40000": 0,
+        "splitRounding": "floor50",
+        "splitUnit": 50,
+        "payerPays": "rounded-shares-total",
+        "scoreRounding": "ceil1000"
+      },
+      "gratuity": {
+        "ippatsu": 300,
+        "ura": 300,
+        "yakuman": {
+          "counted": 1000,
+          "yakuman": 2000,
+          "double": 4000,
+          "triple": 6000,
+          "quadruple": 8000
+        }
+      }
+    },
+    {
+      "id": "pin",
+      "name": "ピン",
+      "version": 1,
+      "comparisonOnly": false,
+      "rounding": {
+        "unit": 50,
+        "perPayment": true,
+        "method": "floor-per-share",
+        "payerPays": "rounded-shares-total"
+      },
+      "points": {
+        "threshold": 40000,
+        "step": 1000,
+        "at39000": 1100,
+        "slope": 100,
+        "atZero": 6000
+      },
+      "venue": {
+        "amount": 1000,
+        "nonTopAt40000": 0,
+        "splitRounding": "floor50",
+        "splitUnit": 50,
+        "payerPays": "rounded-shares-total",
+        "scoreRounding": "ceil1000"
+      },
+      "gratuity": {
+        "ippatsu": 500,
+        "ura": 500,
+        "yakuman": {
+          "counted": 2000,
+          "yakuman": 4000,
+          "double": 8000,
+          "triple": 12000,
+          "quadruple": 16000
+        }
+      }
+    },
+    {
+      "id": "table1",
+      "name": "精算表1",
+      "version": 1,
+      "comparisonOnly": false,
+      "rounding": {
+        "unit": 50,
+        "perPayment": true,
+        "method": "floor-per-share",
+        "payerPays": "rounded-shares-total"
+      },
+      "points": {
+        "threshold": 40000,
+        "step": 1000,
+        "at39000": 850,
+        "slope": 50,
+        "atZero": 3300
+      },
+      "venue": {
+        "amount": 1000,
+        "nonTopAt40000": 300,
+        "splitRounding": "floor50",
+        "splitUnit": 50,
+        "payerPays": "rounded-shares-total",
+        "scoreRounding": "ceil1000"
+      },
+      "gratuity": {
+        "ippatsu": 300,
+        "ura": 300,
+        "yakuman": {
+          "counted": 1000,
+          "yakuman": 2000,
+          "double": 4000,
+          "triple": 6000,
+          "quadruple": 8000
+        }
+      }
+    },
+    {
+      "id": "table2",
+      "name": "精算表2",
+      "version": 1,
+      "comparisonOnly": false,
+      "rounding": {
+        "unit": 50,
+        "perPayment": true,
+        "method": "floor-per-share",
+        "payerPays": "rounded-shares-total"
+      },
+      "points": {
+        "threshold": 40000,
+        "step": 1000,
+        "at39000": 1550,
+        "slope": 50,
+        "atZero": 4000
+      },
+      "venue": {
+        "amount": 1000,
+        "nonTopAt40000": 0,
+        "splitRounding": "floor50",
+        "splitUnit": 50,
+        "payerPays": "rounded-shares-total",
+        "scoreRounding": "ceil1000"
+      },
+      "gratuity": {
+        "ippatsu": 300,
+        "ura": 300,
+        "yakuman": {
+          "counted": 1000,
+          "yakuman": 2000,
+          "double": 4000,
+          "triple": 6000,
+          "quadruple": 8000
+        }
+      }
+    }
+  ]
+}
