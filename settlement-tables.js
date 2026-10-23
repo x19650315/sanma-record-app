@@ -13,7 +13,12 @@ export function validateTable(t){
 }
 export function tableBurden(score,t){validateTable(t);if(!Number.isSafeInteger(score)||score%500!==0)throw Error('点数は500点単位です');score=Math.ceil(score/1000)*1000;if(score>=40000)return 0;return score>0?t.points.at39000+(39000-score)/1000*t.points.slope:t.points.atZero-score/1000*t.points.slope;}
 export const YAKUMAN_TYPES=[{id:'counted',name:'数え役満'},{id:'yakuman',name:'役満'},{id:'double',name:'ダブル'},{id:'triple',name:'トリプル'},{id:'quadruple',name:'4倍'}];
-export const yakumanAmount=(table,type)=>(table.gratuity.yakuman||DEFAULT_TABLES.find(t=>t.id===(table.id==='pin'?'pin':'half')).gratuity.yakuman)[type];
+export function yakumanAmount(table,type){
+ if(!YAKUMAN_TYPES.some(t=>t.id===type))throw Error('役満の種類が不正です');
+ const values=table.gratuity.yakuman||[...DEFAULT_TABLES,...COMPARISON_TABLES].find(t=>t.id===table.id)?.gratuity.yakuman;
+ if(!values)throw Error('独自の精算表は役満祝儀の額を設定してください');return values[type];
+}
+export function upgradeCurrentTables(tables){let changed=false;for(const t of tables){const known=[...DEFAULT_TABLES,...COMPARISON_TABLES].find(x=>x.id===t.id);if(!t.gratuity.yakuman&&known){t.gratuity.yakuman=structuredClone(known.gratuity.yakuman);if(t.id==='pin'){if(t.gratuity.ippatsu===300)t.gratuity.ippatsu=500;if(t.gratuity.ura===300)t.gratuity.ura=500;}changed=true;}}return changed;}
 export const finishBonus=t=>tableBurden(0,t)-tableBurden(1000,t)-t.points.slope;
 export function venueFees(scores,leaders,t){
  const out=Object.fromEntries(Object.keys(scores).map(id=>[id,0]));let remainder=t.venue.amount;

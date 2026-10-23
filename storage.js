@@ -1,5 +1,5 @@
 import {initialState,validateState} from './core.js';
-import {DEFAULT_TABLES,yakumanAmount,YAKUMAN_TYPES} from './settlement-tables.js';
+import {upgradeCurrentTables} from './settlement-tables.js';
 const database=typeof indexedDB==='undefined'?null:new Promise((resolve,reject)=>{const req=indexedDB.open('sanma-record-app',2);req.onupgradeneeded=()=>{for(const name of ['state','photos'])if(!req.result.objectStoreNames.contains(name))req.result.createObjectStore(name);};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);req.onblocked=()=>reject(Error('別の画面を閉じてから開き直してください'));});
 const request=req=>new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
 const validPhoto=value=>typeof value==='string'&&/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value)&&value.length<=1800000;
@@ -12,9 +12,9 @@ export async function splitPhotos(input){
  }return out;}
  return {state:await walk(input),photos,changed};
 }
-export async function load(){const db=await database,raw=await request(db.transaction('state','readonly').objectStore('state').get('main'));if(!raw)return initialState();validateState(raw);let upgraded=false;for(const t of raw.tables)if(!t.gratuity.yakuman){t.gratuity.yakuman=Object.fromEntries(YAKUMAN_TYPES.map(k=>[k.id,yakumanAmount(t,k.id)]));if(t.id==='pin'){if(t.gratuity.ippatsu===300)t.gratuity.ippatsu=500;if(t.gratuity.ura===300)t.gratuity.ura=500;}upgraded=true;}const prepared=await splitPhotos(raw);return prepared.changed||upgraded?save(raw,raw.revision):raw;}
+export async function load(){const db=await database,raw=await request(db.transaction('state','readonly').objectStore('state').get('main'));if(!raw)return initialState();validateState(raw);const upgraded=upgradeCurrentTables(raw.tables);const prepared=await splitPhotos(raw);return prepared.changed||upgraded?save(raw,raw.revision):raw;}
 export async function save(next,expected,extraPhotos={}){
- validateState(next);const prepared=await splitPhotos(next);validateState(prepared.state);const photos={...extraPhotos,...prepared.photos};
+ const current=structuredClone(next);upgradeCurrentTables(current.tables);validateState(current);const prepared=await splitPhotos(current);validateState(prepared.state);const photos={...extraPhotos,...prepared.photos};
  for(const [id,value] of Object.entries(photos))if(!/^[a-f0-9]{64}$/.test(id)||!validPhoto(value)||await photoHash(value)!==id)throw Error('写真バックアップの内容またはハッシュが不正です');
  const db=await database;return new Promise((resolve,reject)=>{const tx=db.transaction(['state','photos'],'readwrite'),store=tx.objectStore('state'),req=store.get('main');let conflict=false,stored;
  req.onsuccess=()=>{if((req.result?.revision??0)!==expected){conflict=true;tx.abort();return;}stored=prepared.state;stored.revision=expected+1;for(const [id,value] of Object.entries(photos))tx.objectStore('photos').put(value,id);store.put(stored,'main');};
@@ -31,3 +31,5 @@ export async function resetStorage(){
 }
 
 export async function availablePhotoIds(){const db=await database;return request(db.transaction('photos','readonly').objectStore('photos').getAllKeys());}
+
+export async function reserveBackupFilename(stamp){const db=await database;return new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite'),store=tx.objectStore('state'),req=store.get('backup-filenames');let count;req.onsuccess=()=>{const names=req.result||{};count=(names[stamp]||0)+1;names[stamp]=count;const keys=Object.keys(names).sort();for(const key of keys.slice(0,-64))delete names[key];store.put(names,'backup-filenames');};tx.oncomplete=()=>resolve(count);tx.onabort=()=>reject(tx.error||Error('ファイル名を準備できませんでした'));tx.onerror=()=>{};});}

@@ -1,4 +1,4 @@
-import {DEFAULT_TABLES,SHARED_SCHEMA,validateTable,tableBurden,finishBonus,venueFees} from './settlement-tables.js';
+import {DEFAULT_TABLES,SHARED_SCHEMA,validateTable,tableBurden,finishBonus,venueFees,YAKUMAN_TYPES} from './settlement-tables.js';
 export const clone=x=>structuredClone(x);
 export const uid=()=>crypto.randomUUID();
 export const DEFAULT_CHIPS={'1000':4,'500':5,'300':10,'100':3,'50':4};
@@ -24,7 +24,7 @@ export function settle({scores,table,rights={},kyotaku=0,yakuman=[],kyotakuRecip
   const part=Math.floor((nominal-bonus)/leaders.length/50)*50,paid=part*leaders.length+bonus;
   pointNet[id]-=paid;for(const leader of leaders)pointNet[leader]+=part;if(nominal>paid)waivers[id]=nominal-paid;
  }
- for(const row of yakuman){if(!ids.includes(row.winner)||typeof row.name!=='string'||!row.name.trim()||!ids.includes(row.from)||!ids.includes(row.to)||row.from===row.to||row.to!==row.winner)throw Error('役満祝儀の和了者・支払者・受取人・役名を確認してください');integer(row.amount,'役満祝儀',1);if(row.amount%1000)throw Error('役満祝儀は1,000円単位です');yakumanNet[row.from]-=row.amount;yakumanNet[row.to]+=row.amount;}
+ for(const row of yakuman){if(row.type!=null&&!YAKUMAN_TYPES.some(t=>t.id===row.type))throw Error('役満の種類が不正です');if(!ids.includes(row.winner)||typeof row.name!=='string'||!row.name.trim()||!ids.includes(row.from)||!ids.includes(row.to)||row.from===row.to||row.to!==row.winner)throw Error('役満祝儀の和了者・支払者・受取人・役名を確認してください');integer(row.amount,'役満祝儀',1);if(row.amount%1000)throw Error('役満祝儀は1,000円単位です');yakumanNet[row.from]-=row.amount;yakumanNet[row.to]+=row.amount;}
  const venueFee=venueFees(finalScores,leaders,table),baseNet=Object.fromEntries(ids.map(id=>[id,pointNet[id]+tobiNet[id]-venueFee[id]])),totalCashNet=Object.fromEntries(ids.map(id=>[id,baseNet[id]+yakumanNet[id]]));
  if(sum(Object.values(totalCashNet))!==-sum(Object.values(venueFee)))throw Error('精算総額の検査に失敗しました');
  for(const n of [...Object.values(pointNet),...Object.values(tobiNet),...Object.values(venueFee),...Object.values(totalCashNet)])if(n%50)throw Error('実受取・支払額は50円単位です');

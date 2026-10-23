@@ -1,6 +1,9 @@
 import {clone,validateState} from './core.js';
 import {photoIds} from './storage.js';
 export const BACKUP_LIMIT=32*1024*1024;
+const filenameCounts=new Map(),filenamePlans=new WeakMap();
+const reserveMemory=async stamp=>{const count=(filenameCounts.get(stamp)||0)+1;filenameCounts.set(stamp,count);if(filenameCounts.size>64)filenameCounts.delete(filenameCounts.keys().next().value);return count;};
+async function filenameForPlan(plan){let state=filenamePlans.get(plan);if(!state){state={reserve:reserveMemory};filenamePlans.set(plan,state);}if(!state.ready){const d=new Date(plan.createdAt),pad=n=>String(n).padStart(2,'0'),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());state.ready=Promise.resolve(state.reserve(stamp)).then(n=>stamp+(n>1?'-'+n:''));}return state.ready;}
 export function selectPeriod(state,from='',to=''){
  if(from&&to&&from>to)throw Error('バックアップの開始日と終了日を確認してください');
  const out=clone(state);if(!from&&!to)return out;
@@ -34,10 +37,10 @@ function* statePieces(state,limit){if(bytes(JSON.stringify(state))<=limit/2||sta
 function envelope(plan,part,photos,index,total){return {schema:'sanma.backup/v3',scope:part.scope,from:part.from,to:part.to,...(part.state?{state:part.state}:{}),photos,backupSet:{id:plan.id,createdAt:plan.createdAt,kind:plan.kind,index,total,photoIds:plan.photoIds}};}
 // Planning counts byte lengths, retaining IDs only, so the first file can carry
 // its exact n-of-N without collecting all photo values in memory.
-export async function createBackupPlan(state,readPhoto,{from='',to='',includePhotos=true,additionalIds=null,limit=BACKUP_LIMIT}={}){
+export async function createBackupPlan(state,readPhoto,{from='',to='',includePhotos=true,additionalIds=null,limit=BACKUP_LIMIT,reserveFilename=reserveMemory}={}){
  const selected=selectPeriod(state,from,to);validateState(selected);
  const kind=additionalIds?'additional':from||to?'period':'all',allIds=includePhotos?[...new Set(additionalIds||photoIds(selected))].sort():[];if(allIds.some(id=>!validPhotoId(id)))throw Error('写真IDが不正です');if(additionalIds&&!allIds.length)throw Error('まだ書き出していない写真はありません');
- const plan={id:crypto.randomUUID(),createdAt:new Date().toISOString(),kind,photoIds:allIds,parts:[],limit};let bases=[];
+ const plan={id:crypto.randomUUID(),createdAt:new Date().toISOString(),kind,photoIds:allIds,parts:[],limit};filenamePlans.set(plan,{reserve:reserveFilename});let bases=[];
  if(additionalIds)bases=[{scope:'photos',from:'',to:'',ids:allIds}];
  else if(!includePhotos)bases=[{scope:from||to?'period':'all',from,to,state:selected,ids:[]}];
  else{const months=[...new Set(selected.sessions.map(s=>s.date.slice(0,7)))].sort(),periods=months.length?months.map(month=>{const [y,m]=month.split('-').map(Number);return [month+'-01',new Date(Date.UTC(y,m,0)).toISOString().slice(0,10)];}):[[from,to]];
@@ -48,5 +51,5 @@ export async function createBackupPlan(state,readPhoto,{from='',to='',includePho
  }
  if(plan.parts.length>10000)throw Error('分割ファイルが多すぎます。期間を短くしてください');return plan;
 }
-export async function materializeBackupPart(plan,index,readPhoto){const part=plan.parts[index];if(!part)throw Error('分割ファイルがありません');const photos={};for(const id of part.ids){const value=await readPhoto(id);if(!value)throw Error('未復元の写真があります');photos[id]=value;}const payload=envelope(plan,part,photos,index+1,plan.parts.length),text=JSON.stringify(payload);if(bytes(text)>plan.limit)throw Error('バックアップ上限を超えました');const d=new Date(plan.createdAt),pad=(n,w=2)=>String(n).padStart(w,'0'),stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes())+'-'+pad(d.getSeconds())+pad(d.getMilliseconds(),3),kind={all:'全体',period:'期間',additional:'追加分'}[plan.kind];return {text,name:`卓の記録-${stamp}-${kind}-${index+1}of${plan.parts.length}.json`,from:part.from,to:part.to,part:index+1,total:plan.parts.length,photoIds:[...part.ids]};}
+export async function materializeBackupPart(plan,index,readPhoto){const part=plan.parts[index];if(!part)throw Error('分割ファイルがありません');const photos={};for(const id of part.ids){const value=await readPhoto(id);if(!value)throw Error('未復元の写真があります');photos[id]=value;}const payload=envelope(plan,part,photos,index+1,plan.parts.length),text=JSON.stringify(payload);if(bytes(text)>plan.limit)throw Error('バックアップ上限を超えました');const d=new Date(plan.createdAt),pad=(n,w=2)=>String(n).padStart(w,'0'),stamp=await filenameForPlan(plan),kind={all:'全体',period:'期間',additional:'追加分'}[plan.kind];return {text,name:`卓の記録-${stamp}-${kind}-${index+1}of${plan.parts.length}.json`,from:part.from,to:part.to,part:index+1,total:plan.parts.length,photoIds:[...part.ids]};}
 export async function* photoBackupParts(state,readPhoto,from='',to='',limit=BACKUP_LIMIT){const plan=await createBackupPlan(state,readPhoto,{from,to,limit});for(let i=0;i<plan.parts.length;i++)yield await materializeBackupPart(plan,i,readPhoto);}
