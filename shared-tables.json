@@ -26,7 +26,11 @@
         "splitRounding": "floor50",
         "splitUnit": 50,
         "payerPays": "rounded-shares-total",
-        "scoreRounding": "ceil1000"
+        "scoreRounding": "ceil1000",
+        "prepaid": {
+          "amountPerPlayer": 300,
+          "payers": "initial-active-players"
+        }
       },
       "gratuity": {
         "ippatsu": 300,
