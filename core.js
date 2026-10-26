@@ -7,7 +7,7 @@ const sum=a=>a.reduce((x,y)=>x+y,0);
 const integer=(n,label,min=-Number.MAX_SAFE_INTEGER)=>{if(!Number.isSafeInteger(n)||n<min)throw Error(label+'が不正です');};
 export function chipTotal(chips){if(!chips||typeof chips!=='object'||Array.isArray(chips))throw Error('チップ構成が不正です');let total=0;for(const [value,count] of Object.entries(chips)){if(!/^\d+$/.test(value)||+value<=0)throw Error('チップ単価が不正です');integer(count,'チップ枚数',0);total+=+value*count;}integer(total,'チップ残高',0);return total;}
 export const initialState=()=>({schema:'sanma.records/v1',revision:0,members:[],tables:clone(DEFAULT_TABLES),sessions:[],records:[],audit:[],settings:{denominations:[1000,500,300,100,50]},meta:{lastBackup:null,backupRevision:-1,photoExportedIds:[],importedBackupSets:{}}});
-export function settle({scores,table,rights={},kyotaku=0,yakuman=[],kyotakuRecipient=null}){
+export function settle({scores,table,rights={},kyotaku=0,yakuman=[],kyotakuRecipient=null,allowLegacyUnknown=false}){
  validateTable(table);if(!scores||typeof scores!=='object'||!rights||typeof rights!=='object'||!Array.isArray(yakuman))throw Error('精算データが不正です');
  const ids=Object.keys(scores),finalScores={...scores},top=()=>ids.filter(id=>finalScores[id]===Math.max(...Object.values(finalScores)));
  if(ids.length!==3||ids.some(id=>!validId(id))||Object.keys(rights).some(id=>!ids.includes(id)))throw Error('記録する卓は東南西の異なる3人です');
@@ -19,12 +19,13 @@ export function settle({scores,table,rights={},kyotaku=0,yakuman=[],kyotakuRecip
  const leaders=top();if(leaders.length===3)throw Error('このままでは半荘は終わりません');const pointNet=Object.fromEntries(ids.map(id=>[id,0])),tobiNet={...pointNet},yakumanNet={...pointNet},waivers={};
  for(const id of ids){
   const nominal=leaders.includes(id)?0:tableBurden(finalScores[id],table),right=rights[id];let bonus=0;
+  if(!allowLegacyUnknown&&finalScores[id]<=0&&(right==null||right===''||right==='unknown'))throw Error('0点以下の人の飛ばし権利者を名前か「なし」から選んでください');
   if(right!=null&&!['none','unknown',''].includes(right)){if(finalScores[id]>0||!ids.includes(right)||right===id)throw Error('飛ばし権利者を確認してください');bonus=finishBonus(table);tobiNet[right]+=bonus;}
   if(bonus>nominal)throw Error('飛ばし分が支払原資を超えています');
   const part=Math.floor((nominal-bonus)/leaders.length/50)*50,paid=part*leaders.length+bonus;
   pointNet[id]-=paid;for(const leader of leaders)pointNet[leader]+=part;if(nominal>paid)waivers[id]=nominal-paid;
  }
- for(const row of yakuman){if(row.type!=null&&!YAKUMAN_TYPES.some(t=>t.id===row.type))throw Error('役満の種類が不正です');if(!ids.includes(row.winner)||typeof row.name!=='string'||!row.name.trim()||!ids.includes(row.from)||!ids.includes(row.to)||row.from===row.to||row.to!==row.winner)throw Error('役満祝儀の和了者・支払者・受取人・役名を確認してください');integer(row.amount,'役満祝儀',1);if(row.amount%1000)throw Error('役満祝儀は1,000円単位です');yakumanNet[row.from]-=row.amount;yakumanNet[row.to]+=row.amount;}
+ for(const row of yakuman){if(row.type==='higher'&&(!Number.isSafeInteger(row.multiple)||row.multiple<5))throw Error('5倍以上の倍数は5以上の整数です');if(row.type!=null&&row.type!=='higher'&&!YAKUMAN_TYPES.some(t=>t.id===row.type))throw Error('役満の種類が不正です');if(!ids.includes(row.winner)||typeof row.name!=='string'||!row.name.trim()||!ids.includes(row.from)||!ids.includes(row.to)||row.from===row.to||row.to!==row.winner)throw Error('役満祝儀の和了者・支払者・受取人・役名を確認してください');integer(row.amount,'役満祝儀',1);if(row.amount%1000)throw Error('役満祝儀は1,000円単位です');yakumanNet[row.from]-=row.amount;yakumanNet[row.to]+=row.amount;}
  const venueFee=venueFees(finalScores,leaders,table),baseNet=Object.fromEntries(ids.map(id=>[id,pointNet[id]+tobiNet[id]-venueFee[id]])),totalCashNet=Object.fromEntries(ids.map(id=>[id,baseNet[id]+yakumanNet[id]]));
  if(sum(Object.values(totalCashNet))!==-sum(Object.values(venueFee)))throw Error('精算総額の検査に失敗しました');
  for(const n of [...Object.values(pointNet),...Object.values(tobiNet),...Object.values(venueFee),...Object.values(totalCashNet)])if(n%50)throw Error('実受取・支払額は50円単位です');
@@ -35,7 +36,7 @@ export function recordResult(r,state){const session=state.sessions.find(s=>s.id=
  // Historical v0.3 deposit allocation is retained as recorded holdings; owner
  // adjustment metadata is deliberately ignored in the new cash calculation.
  if((r.recordVersion??1)<3&&deposit){const top=r.seats.filter(id=>scores[id]===Math.max(...Object.values(scores)));if(recipient==='split-top'&&top.length===2){scores={...scores};for(const id of top)scores[id]+=deposit/2;deposit=0;recipient=null;}else if(!recipient&&top.length===1)recipient=top[0];}
- const result=settle({scores,table:r.tableSnapshot,rights:r.rights,kyotaku:deposit,yakuman:r.yakuman,kyotakuRecipient:recipient});return {...result,totalCheck:sum(Object.values(r.scores))+(r.kyotaku||0)-35000*3};}
+ const result=settle({scores,table:r.tableSnapshot,rights:r.rights,kyotaku:deposit,yakuman:r.yakuman,kyotakuRecipient:recipient,allowLegacyUnknown:(r.recordVersion??1)<4});return {...result,totalCheck:sum(Object.values(r.scores))+(r.kyotaku||0)-35000*3};}
 
 export function addOrEditRecord(state,input){const next=clone(state),old=next.records.find(r=>r.id===input.id);const record=clone(input);if(old&&!!old.testRecord!==!!record.testRecord)throw Error('確認用の印は新規作成時だけ設定できます');if(record.recordVersion>=3){delete record.ownerAdjustments;delete record.ownerSettlementStatus;delete record.depositSplit;}recordResult(record,next);if(old){next.audit.push({at:new Date().toISOString(),kind:'record-edit',id:old.id,before:clone(old),after:clone(record)});next.records[next.records.findIndex(r=>r.id===old.id)]=record;}else{record.id=record.id||uid();next.records.push(record);}return next;}
 export function derivedRecords(state){const out=[];for(const s of state.sessions){let previous=chipTotal(s.initialChips[s.recorder]);const records=state.records.filter(r=>r.sessionId===s.id).sort((a,b)=>a.at.localeCompare(b.at)||a.id.localeCompare(b.id));for(const [index,r] of records.entries()){const result=recordResult(r,state),balance=chipTotal(r.chips),gratuityEstimate=balance-previous-result.baseNet[s.recorder];out.push({...r,number:index+1,result,balance,previousBalance:previous,gratuityEstimate,otherGratuityEstimate:gratuityEstimate-result.yakumanNet[s.recorder]});previous=balance;}}return out.sort((a,b)=>b.at.localeCompare(a.at));}
