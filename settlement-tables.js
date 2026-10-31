@@ -31,4 +31,11 @@ export function venueFees(scores,leaders,t){
 export function exportShared(members=[],tables=DEFAULT_TABLES){return {schema:SHARED_SCHEMA,members:structuredClone(members),tables:structuredClone(tables).map(t=>{t.rounding=structuredClone(ROUNDING);t.gratuity.yakuman=Object.fromEntries(YAKUMAN_TYPES.map(k=>[k.id,yakumanAmount(t,k.id)]));t.venue={amount:t.venue.amount,nonTopAt40000:t.venue.nonTopAt40000??t.venue.secondAt40000,splitRounding:"floor50",splitUnit:50,payerPays:"rounded-shares-total",scoreRounding:"ceil1000",...(t.venue.prepaid?{prepaid:structuredClone(t.venue.prepaid)}:{})};return t;})};}
 
 export function higherYakumanAmount(table,multiple){if(!Number.isSafeInteger(multiple)||multiple<5)throw Error('倍数は5以上の整数です');const amount=yakumanAmount(table,'yakuman')*multiple;if(!Number.isSafeInteger(amount))throw Error('金額が大きすぎます');return amount;}
-export function yakumanWarnings(table,rows){return rows.filter(row=>row.type!=='counted'&&Number.isFinite(row.amount)&&row.amount>0&&row.amount%yakumanAmount(table,'yakuman')!==0).map(()=>`役満祝儀が役満の額（${yakumanAmount(table,'yakuman').toLocaleString('ja-JP')}円）の倍数ではありません。手入力額のまま保存できます。`);}
+export function yakumanWarnings(table,rows){return rows.flatMap(row=>{
+ if(!Number.isFinite(row.amount)||row.amount<=0)return [];
+ let expected=null;
+ if(row.type==='higher'){try{expected=higherYakumanAmount(table,row.multiple);}catch{return [];}}
+ else if(row.type)expected=yakumanAmount(table,row.type);
+ const mismatch=expected==null?row.amount%yakumanAmount(table,'yakuman')!==0:row.amount!==expected;
+ return mismatch?[expected==null?`役満祝儀が役満の額（${yakumanAmount(table,'yakuman').toLocaleString('ja-JP')}円）の倍数ではありません。1,000円単位なら手入力額のまま保存できます。`:`選んだ種類・倍数の額（${expected.toLocaleString('ja-JP')}円）と異なります。1,000円単位なら手入力額のまま保存できます。`]:[];
+ });}
