@@ -36,6 +36,9 @@ export function yakumanWarnings(table,rows){return rows.flatMap(row=>{
  let expected=null;
  if(row.type==='higher'){try{expected=higherYakumanAmount(table,row.multiple);}catch{return [];}}
  else if(row.type)expected=yakumanAmount(table,row.type);
+ if(expected!=null&&row.pao)expected=paoYakumanAmount(table,row.type,row.multiple,row.paoTableHumans);
  const mismatch=expected==null?row.amount%yakumanAmount(table,'yakuman')!==0:row.amount!==expected;
- return mismatch?[expected==null?`役満祝儀が役満の額（${yakumanAmount(table,'yakuman').toLocaleString('ja-JP')}円）の倍数ではありません。1,000円単位なら手入力額のまま保存できます。`:`選んだ種類・倍数の額（${expected.toLocaleString('ja-JP')}円）と異なります。1,000円単位なら手入力額のまま保存できます。`]:[];
+ return mismatch?[expected==null?`役満祝儀が役満の額（${yakumanAmount(table,'yakuman').toLocaleString('ja-JP')}円）の倍数ではありません。1,000円単位なら手入力額のまま保存できます。`:`${row.pao?'選んだ種類・人数の額':'選んだ種類・倍数の額'}（${expected.toLocaleString('ja-JP')}円）と異なります。1,000円単位なら手入力額のまま保存できます。`]:[];
  });}
+
+export function paoYakumanAmount(table,type,multiple,humans){if(![3,4].includes(humans))throw Error('包の卓の人数は3人か4人です');const per=type==='higher'?higherYakumanAmount(table,multiple):yakumanAmount(table,type),amount=per*(humans-1);if(!Number.isSafeInteger(amount))throw Error('金額が大きすぎます');return amount;}
